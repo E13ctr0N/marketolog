@@ -1,8 +1,11 @@
 """FastMCP server — registers Core tools and prompt resources."""
 
+import logging
+import time as _time
 from pathlib import Path
 from typing import Annotated
 
+import yaml
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
@@ -96,7 +99,6 @@ def create_server(base_dir: Path = DEFAULT_BASE_DIR) -> FastMCP:
     @mcp.tool(annotations=READ_ONLY)
     def get_project_context() -> str:
         """Полный контекст активного проекта: ниша, ЦА, конкуренты, tone of voice, соцсети, SEO."""
-        import yaml
         context = ctx.get_context()
         return yaml.dump(context, allow_unicode=True, sort_keys=False)
 
@@ -108,5 +110,46 @@ def create_server(base_dir: Path = DEFAULT_BASE_DIR) -> FastMCP:
     def strategist_prompt() -> str:
         """Основной промпт маркетолога-стратега."""
         return (prompts_dir / "strategist.md").read_text(encoding="utf-8")
+
+    # --- Scheduled Posts Check ---
+
+    logger = logging.getLogger("marketolog")
+    scheduled_dir = base_dir / "scheduled"
+    scheduled_dir.mkdir(parents=True, exist_ok=True)
+
+    def _check_scheduled_posts() -> list[str]:
+        """Check for pending scheduled posts at server startup."""
+        notifications = []
+        now = _time.time()
+        one_hour = 3600
+
+        for path in sorted(scheduled_dir.glob("*.yaml")):
+            try:
+                data = yaml.safe_load(path.read_text(encoding="utf-8"))
+                scheduled_at = data.get("scheduled_at", 0)
+
+                if scheduled_at <= now:
+                    overdue_seconds = now - scheduled_at
+                    platform = data.get("platform", "unknown")
+                    text_preview = data.get("text", "")[:50]
+
+                    if overdue_seconds > one_hour:
+                        notifications.append(
+                            f"ПРОСРОЧЕН (>{int(overdue_seconds/60)} мин): "
+                            f"{platform} — \"{text_preview}...\". Файл: {path.name}"
+                        )
+                    else:
+                        notifications.append(
+                            f"ГОТОВ к отправке: {platform} — \"{text_preview}...\". "
+                            f"Файл: {path.name}"
+                        )
+            except Exception as e:
+                logger.warning(f"Ошибка чтения {path}: {e}")
+
+        return notifications
+
+    pending = _check_scheduled_posts()
+    if pending:
+        logger.info("Отложенные посты:\n" + "\n".join(pending))
 
     return mcp
