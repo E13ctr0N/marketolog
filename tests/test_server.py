@@ -28,3 +28,46 @@ def test_server_has_strategist_resource(server):
     assert any("strategist" in uri for uri in resource_uris), (
         f"No strategist resource found. Resources: {resource_uris}"
     )
+
+
+@pytest.mark.asyncio
+async def test_core_workflow(server):
+    """E2E: create → switch → context → update → list → delete."""
+    from fastmcp import Client
+
+    async with Client(server) as client:
+        # Create
+        result = await client.call_tool("create_project", {
+            "name": "e2e-test",
+            "url": "https://e2e.ru",
+            "niche": "тестирование",
+            "description": "E2E тест",
+        })
+        assert "создан" in result.data.lower()
+
+        # Switch
+        result = await client.call_tool("switch_project", {"name": "e2e-test"})
+        assert "e2e-test" in result.data
+
+        # Get context
+        result = await client.call_tool("get_project_context", {})
+        assert "e2e.ru" in result.data
+
+        # Update
+        result = await client.call_tool("update_project", {
+            "field": "tone_of_voice",
+            "value": "формальный",
+        })
+        assert "формальный" in result.data
+
+        # List
+        result = await client.call_tool("list_projects", {})
+        assert "e2e-test" in result.data
+
+        # Delete
+        result = await client.call_tool("delete_project", {"name": "e2e-test"})
+        assert "удалён" in result.data.lower()
+
+        # Verify deleted
+        result = await client.call_tool("list_projects", {})
+        assert "e2e-test" not in result.data
