@@ -19,6 +19,13 @@ from marketolog.core.projects import (
     list_projects as _list_projects,
     update_project as _update_project,
 )
+from marketolog.modules.seo.audit import run_seo_audit
+from marketolog.modules.seo.ai_seo import run_ai_seo_check
+from marketolog.modules.seo.keywords import run_keyword_research, run_keyword_cluster
+from marketolog.modules.seo.positions import run_check_positions
+from marketolog.modules.seo.competitors import run_analyze_competitors, run_content_gap
+from marketolog.modules.seo.webmaster import run_webmaster_report
+from marketolog.utils.cache import FileCache
 
 READ_ONLY = ToolAnnotations(readOnlyHint=True)
 MUTATING = ToolAnnotations(readOnlyHint=False)
@@ -102,6 +109,100 @@ def create_server(base_dir: Path = DEFAULT_BASE_DIR) -> FastMCP:
         context = ctx.get_context()
         return yaml.dump(context, allow_unicode=True, sort_keys=False)
 
+    cache = FileCache(base_dir=base_dir / "cache")
+
+    # --- SEO Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def seo_audit(
+        url: Annotated[str | None, Field(description="URL для аудита. Если не указан — URL проекта", default=None)] = None,
+    ) -> str:
+        """Технический SEO-аудит: Core Web Vitals, мета-теги, заголовки, robots.txt, sitemap, schema markup."""
+        if url is None:
+            url = ctx.get_context()["url"]
+        return await run_seo_audit(url=url, config=config, cache=cache)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def ai_seo_check(
+        url: Annotated[str | None, Field(description="URL для проверки. Если не указан — URL проекта", default=None)] = None,
+    ) -> str:
+        """Проверка готовности к AI-поисковикам: GPTBot, ClaudeBot, PerplexityBot, llms.txt, schema markup."""
+        if url is None:
+            url = ctx.get_context()["url"]
+        return await run_ai_seo_check(url=url, cache=cache)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def keyword_research(
+        seed_keywords: Annotated[list[str] | None, Field(description="Начальные ключевые слова. Если не указаны — из проекта", default=None)] = None,
+        count: Annotated[int, Field(description="Макс. количество результатов", default=50)] = 50,
+    ) -> str:
+        """Подбор ключевых слов через Яндекс Wordstat API: частотность, топ запросов."""
+        if seed_keywords is None:
+            project = ctx.get_context()
+            seed_keywords = project.get("seo", {}).get("main_keywords", [])
+        if not seed_keywords:
+            return "Укажите seed_keywords или добавьте main_keywords в проект."
+        return await run_keyword_research(seed_keywords=seed_keywords, config=config, cache=cache, count=count)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def keyword_cluster(
+        keywords: Annotated[list[dict], Field(description='Список: [{"text": "...", "count": N}, ...]')],
+    ) -> str:
+        """Кластеризация ключевых слов по интенту."""
+        clusters = run_keyword_cluster(keywords)
+        lines = []
+        for c in clusters:
+            lines.append(f"\n### {c['name']} (суммарный объём: {c['total_volume']})")
+            for kw in c["keywords"]:
+                lines.append(f"  - {kw['text']}: {kw.get('count', '?')}")
+        return "\n".join(lines) if lines else "Не удалось кластеризовать."
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def check_positions(
+        keywords: Annotated[list[str] | None, Field(description="Ключевые слова. Если не указаны — из проекта", default=None)] = None,
+    ) -> str:
+        """Позиции сайта в Яндексе по ключевым словам."""
+        project = ctx.get_context()
+        site_url = project["url"]
+        if keywords is None:
+            keywords = project.get("seo", {}).get("main_keywords", [])
+        if not keywords:
+            return "Укажите keywords или добавьте main_keywords в проект."
+        return await run_check_positions(keywords=keywords, site_url=site_url, config=config, cache=cache)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def analyze_competitors(
+        competitor_urls: Annotated[list[str] | None, Field(description="URL конкурентов. Если не указаны — из проекта", default=None)] = None,
+    ) -> str:
+        """Анализ конкурентов: структура, контент, мета-теги, schema markup."""
+        if competitor_urls is None:
+            project = ctx.get_context()
+            competitor_urls = [c["url"] for c in project.get("competitors", []) if c.get("url")]
+        if not competitor_urls:
+            return "Укажите competitor_urls или добавьте конкурентов в проект."
+        return await run_analyze_competitors(competitor_urls=competitor_urls, config=config, cache=cache)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def content_gap(
+        competitor_urls: Annotated[list[str] | None, Field(description="URL конкурентов", default=None)] = None,
+    ) -> str:
+        """Ключевые слова, по которым ранжируются конкуренты, но не вы."""
+        project = ctx.get_context()
+        site_url = project["url"]
+        if competitor_urls is None:
+            competitor_urls = [c["url"] for c in project.get("competitors", []) if c.get("url")]
+        keywords = project.get("seo", {}).get("main_keywords", [])
+        if not competitor_urls:
+            return "Укажите competitor_urls или добавьте конкурентов в проект."
+        return await run_content_gap(site_url=site_url, competitor_urls=competitor_urls, keywords=keywords, config=config, cache=cache)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def webmaster_report() -> str:
+        """Отчёт Яндекс.Вебмастера: индексация, ошибки, популярные запросы."""
+        project = ctx.get_context()
+        host = project.get("seo", {}).get("webmaster_host", project["url"])
+        return await run_webmaster_report(host=host, config=config, cache=cache)
+
     # --- Prompt Resources ---
 
     prompts_dir = Path(__file__).parent / "prompts"
@@ -110,6 +211,11 @@ def create_server(base_dir: Path = DEFAULT_BASE_DIR) -> FastMCP:
     def strategist_prompt() -> str:
         """Основной промпт маркетолога-стратега."""
         return (prompts_dir / "strategist.md").read_text(encoding="utf-8")
+
+    @mcp.resource("marketolog://prompts/seo_expert")
+    def seo_expert_prompt() -> str:
+        """Промпт SEO-эксперта."""
+        return (prompts_dir / "seo_expert.md").read_text(encoding="utf-8")
 
     # --- Scheduled Posts Check ---
 
