@@ -43,6 +43,13 @@ from marketolog.modules.smm.max_api import run_max_post, run_max_stats
 from marketolog.modules.smm.dzen import run_dzen_publish
 from marketolog.modules.smm.trends import run_trend_research
 from marketolog.modules.smm.calendar import run_smm_calendar, run_best_time_to_post
+from marketolog.modules.strategy.audience import run_analyze_target_audience
+from marketolog.modules.strategy.positioning import run_analyze_positioning
+from marketolog.modules.strategy.intelligence import run_competitor_intelligence
+from marketolog.modules.strategy.planning import run_marketing_plan
+from marketolog.modules.strategy.channels import run_channel_recommendation
+from marketolog.modules.strategy.brand import run_brand_health
+from marketolog.modules.strategy.ai_visibility import run_ai_visibility
 from marketolog.utils.cache import FileCache
 
 READ_ONLY = ToolAnnotations(readOnlyHint=True)
@@ -481,6 +488,61 @@ def create_server(base_dir: Path = DEFAULT_BASE_DIR) -> FastMCP:
         """Рекомендация лучшего времени публикации (бенчмарки Рунета)."""
         project = ctx.get_context()
         return run_best_time_to_post(project_context=project, platform=platform)
+
+    # --- Strategy Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    def analyze_target_audience() -> str:
+        """Портреты ЦА (ICP): кто, боли, мотивация, каналы."""
+        project = ctx.get_context()
+        return run_analyze_target_audience(project_context=project)
+
+    @mcp.tool(annotations=READ_ONLY)
+    def analyze_positioning() -> str:
+        """Позиционирование: отличия от конкурентов, УТП, слабые стороны."""
+        project = ctx.get_context()
+        return run_analyze_positioning(project_context=project)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def competitor_intelligence(
+        competitor_urls: Annotated[list[str] | None, Field(description="URL конкурентов. Если не указаны — из проекта", default=None)] = None,
+    ) -> str:
+        """Глубокий анализ конкурентов: продукт, цены, контент, соцсети, SEO, каналы."""
+        project = ctx.get_context()
+        return await run_competitor_intelligence(
+            project_context=project, config=config, cache=cache, competitor_urls=competitor_urls,
+        )
+
+    @mcp.tool(annotations=MUTATING)
+    def marketing_plan(
+        period: Annotated[str, Field(description="Период: '1 month', '3 months', '6 months'", default="3 months")] = "3 months",
+        budget: Annotated[str | None, Field(description="Месячный бюджет в рублях", default=None)] = None,
+    ) -> str:
+        """Маркетинговый план: цели, каналы, бюджет, метрики, календарь."""
+        project = ctx.get_context()
+        return run_marketing_plan(project_context=project, period=period, budget=budget)
+
+    @mcp.tool(annotations=READ_ONLY)
+    def channel_recommendation() -> str:
+        """Рекомендация каналов продвижения с прогнозом ROI."""
+        project = ctx.get_context()
+        return run_channel_recommendation(project_context=project)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def brand_health() -> str:
+        """Здоровье бренда: упоминания, отзывы, динамика."""
+        project = ctx.get_context()
+        return await run_brand_health(project_context=project, config=config, cache=cache)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def ai_visibility(
+        brand_name: Annotated[str | None, Field(description="Название бренда. Если не указано — из проекта", default=None)] = None,
+    ) -> str:
+        """Мониторинг упоминаний бренда в AI-ответах (ChatGPT, Claude, Perplexity)."""
+        project = ctx.get_context()
+        return await run_ai_visibility(
+            project_context=project, config=config, cache=cache, brand_name=brand_name,
+        )
 
     # --- Prompt Resources ---
 
