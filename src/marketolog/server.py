@@ -32,6 +32,11 @@ from marketolog.modules.analytics.traffic_sources import run_traffic_sources
 from marketolog.modules.analytics.funnel import run_funnel_analysis
 from marketolog.modules.analytics.ai_referral import run_ai_referral_report
 from marketolog.modules.analytics.digest import run_weekly_digest
+from marketolog.modules.content.planner import run_content_plan
+from marketolog.modules.content.generator import run_generate_article, run_generate_post, run_repurpose_content
+from marketolog.modules.content.optimizer import run_optimize_text
+from marketolog.modules.content.analyzer import run_analyze_content
+from marketolog.modules.content.meta import run_generate_meta
 from marketolog.utils.cache import FileCache
 
 READ_ONLY = ToolAnnotations(readOnlyHint=True)
@@ -299,6 +304,70 @@ def create_server(base_dir: Path = DEFAULT_BASE_DIR) -> FastMCP:
             return "Укажите YANDEX_METRIKA_COUNTER или добавьте yandex_metrika_id в проект."
         return await run_ai_referral_report(counter_id=counter_id, config=config, cache=cache, period=period)
 
+    # --- Content Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    def content_plan(
+        period: Annotated[str, Field(description="Период планирования: '1 week', '2 weeks', '1 month'", default="2 weeks")] = "2 weeks",
+        topics_count: Annotated[int, Field(description="Количество тем", default=10)] = 10,
+    ) -> str:
+        """Контент-план: темы, форматы, ключевые слова, календарь."""
+        project = ctx.get_context()
+        return run_content_plan(project_context=project, period=period, topics_count=topics_count)
+
+    @mcp.tool(annotations=READ_ONLY)
+    def generate_article(
+        topic: Annotated[str, Field(description="Тема статьи")],
+        keywords: Annotated[list[str] | None, Field(description="Целевые ключевые слова", default=None)] = None,
+        length: Annotated[str, Field(description="Объём: short, medium, long", default="medium")] = "medium",
+    ) -> str:
+        """SEO-оптимизированная статья: собирает контекст (ключи, tone of voice, аудитория) для генерации."""
+        project = ctx.get_context()
+        return run_generate_article(topic=topic, project_context=project, keywords=keywords, length=length)
+
+    @mcp.tool(annotations=READ_ONLY)
+    def generate_post(
+        platform: Annotated[str, Field(description="Площадка: telegram, vk, max, dzen")],
+        topic: Annotated[str | None, Field(description="Тема поста (если не указана — предложит)", default=None)] = None,
+    ) -> str:
+        """Пост для площадки: собирает контекст + гайдлайны площадки для генерации."""
+        project = ctx.get_context()
+        return run_generate_post(platform=platform, project_context=project, topic=topic)
+
+    @mcp.tool(annotations=READ_ONLY)
+    def optimize_text(
+        text: Annotated[str, Field(description="Текст для анализа (Markdown)")],
+        target_keywords: Annotated[list[str], Field(description="Целевые ключевые слова")],
+    ) -> str:
+        """SEO-оптимизация текста: плотность ключей, структура, читаемость, рекомендации."""
+        return run_optimize_text(text=text, target_keywords=target_keywords)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def analyze_content(
+        url: Annotated[str | None, Field(description="URL страницы для анализа. Если не указан — URL проекта", default=None)] = None,
+    ) -> str:
+        """Анализ контента страницы: читаемость, SEO-оценка, заголовки, мета-теги."""
+        if url is None:
+            url = ctx.get_context()["url"]
+        return await run_analyze_content(url=url, cache=cache)
+
+    @mcp.tool(annotations=READ_ONLY)
+    def generate_meta(
+        text: Annotated[str, Field(description="Текст или содержимое страницы для генерации мета-тегов")],
+        keywords: Annotated[list[str] | None, Field(description="Целевые ключевые слова", default=None)] = None,
+    ) -> str:
+        """Генерация title, description, H1 — собирает контекст и требования."""
+        return run_generate_meta(text=text, keywords=keywords)
+
+    @mcp.tool(annotations=READ_ONLY)
+    def repurpose_content(
+        text: Annotated[str, Field(description="Исходный текст для адаптации")],
+        formats: Annotated[list[str] | None, Field(description="Целевые форматы: telegram, vk, max, dzen, carousel, video_script", default=None)] = None,
+    ) -> str:
+        """Репёрпосинг контента: адаптация текста под разные площадки и форматы."""
+        project = ctx.get_context()
+        return run_repurpose_content(text=text, project_context=project, formats=formats)
+
     # --- Prompt Resources ---
 
     prompts_dir = Path(__file__).parent / "prompts"
@@ -317,6 +386,11 @@ def create_server(base_dir: Path = DEFAULT_BASE_DIR) -> FastMCP:
     def analyst_prompt() -> str:
         """Промпт аналитика."""
         return (prompts_dir / "analyst.md").read_text(encoding="utf-8")
+
+    @mcp.resource("marketolog://prompts/content_writer")
+    def content_writer_prompt() -> str:
+        """Промпт контент-райтера."""
+        return (prompts_dir / "content_writer.md").read_text(encoding="utf-8")
 
     # --- Scheduled Posts Check ---
 
