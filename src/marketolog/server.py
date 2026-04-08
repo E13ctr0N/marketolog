@@ -37,6 +37,12 @@ from marketolog.modules.content.generator import run_generate_article, run_gener
 from marketolog.modules.content.optimizer import run_optimize_text
 from marketolog.modules.content.analyzer import run_analyze_content
 from marketolog.modules.content.meta import run_generate_meta
+from marketolog.modules.smm.telegram import run_telegram_post, run_telegram_stats
+from marketolog.modules.smm.vk import run_vk_post, run_vk_stats
+from marketolog.modules.smm.max_api import run_max_post, run_max_stats
+from marketolog.modules.smm.dzen import run_dzen_publish
+from marketolog.modules.smm.trends import run_trend_research
+from marketolog.modules.smm.calendar import run_smm_calendar, run_best_time_to_post
 from marketolog.utils.cache import FileCache
 
 READ_ONLY = ToolAnnotations(readOnlyHint=True)
@@ -368,6 +374,114 @@ def create_server(base_dir: Path = DEFAULT_BASE_DIR) -> FastMCP:
         project = ctx.get_context()
         return run_repurpose_content(text=text, project_context=project, formats=formats)
 
+    # --- SMM Tools ---
+
+    @mcp.tool(annotations=MUTATING)
+    async def telegram_post(
+        text: Annotated[str, Field(description="Текст поста (Markdown)")],
+        channel: Annotated[str | None, Field(description="Канал (@username). Если не указан — из проекта", default=None)] = None,
+        image_url: Annotated[str | None, Field(description="URL изображения", default=None)] = None,
+    ) -> str:
+        """Публикация поста в Telegram-канал."""
+        if channel is None:
+            channel = ctx.get_context().get("social", {}).get("telegram_channel", "")
+        if not channel:
+            return "Укажите channel или добавьте telegram_channel в проект."
+        return await run_telegram_post(channel=channel, text=text, config=config, image_url=image_url)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def telegram_stats(
+        channel: Annotated[str | None, Field(description="Канал (@username). Если не указан — из проекта", default=None)] = None,
+    ) -> str:
+        """Статистика Telegram-канала: подписчики, информация."""
+        if channel is None:
+            channel = ctx.get_context().get("social", {}).get("telegram_channel", "")
+        if not channel:
+            return "Укажите channel или добавьте telegram_channel в проект."
+        return await run_telegram_stats(channel=channel, config=config, cache=cache)
+
+    @mcp.tool(annotations=MUTATING)
+    async def vk_post(
+        text: Annotated[str, Field(description="Текст поста")],
+        group: Annotated[str | None, Field(description="VK-группа. Если не указана — из проекта", default=None)] = None,
+    ) -> str:
+        """Публикация поста в VK-сообщество."""
+        if group is None:
+            group = ctx.get_context().get("social", {}).get("vk_group", "")
+        if not group:
+            return "Укажите group или добавьте vk_group в проект."
+        return await run_vk_post(group=group, text=text, config=config)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def vk_stats(
+        group: Annotated[str | None, Field(description="VK-группа. Если не указана — из проекта", default=None)] = None,
+        period: Annotated[str, Field(description="Период: 7d, 30d, 90d", default="7d")] = "7d",
+    ) -> str:
+        """Статистика VK-сообщества: просмотры, посетители, охват."""
+        if group is None:
+            group = ctx.get_context().get("social", {}).get("vk_group", "")
+        if not group:
+            return "Укажите group или добавьте vk_group в проект."
+        return await run_vk_stats(group=group, config=config, cache=cache, period=period)
+
+    @mcp.tool(annotations=MUTATING)
+    async def max_post(
+        text: Annotated[str, Field(description="Текст поста (Markdown, до 4000 символов)")],
+        channel: Annotated[str | None, Field(description="MAX-канал. Если не указан — из проекта", default=None)] = None,
+    ) -> str:
+        """Публикация поста в MAX-канал."""
+        if channel is None:
+            channel = ctx.get_context().get("social", {}).get("max_channel", "")
+        if not channel:
+            return "Укажите channel или добавьте max_channel в проект."
+        return await run_max_post(channel=channel, text=text, config=config)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def max_stats(
+        channel: Annotated[str | None, Field(description="MAX-канал. Если не указан — из проекта", default=None)] = None,
+    ) -> str:
+        """Статистика MAX-канала: участники, информация."""
+        if channel is None:
+            channel = ctx.get_context().get("social", {}).get("max_channel", "")
+        if not channel:
+            return "Укажите channel или добавьте max_channel в проект."
+        return await run_max_stats(channel=channel, config=config, cache=cache)
+
+    @mcp.tool(annotations=MUTATING)
+    async def dzen_publish(
+        text: Annotated[str, Field(description="Текст для публикации в Дзен")],
+        image_url: Annotated[str | None, Field(description="URL изображения", default=None)] = None,
+    ) -> str:
+        """Публикация в Дзен через Telegram-кросспостинг (@zen_sync_bot)."""
+        project = ctx.get_context()
+        return await run_dzen_publish(text=text, project_context=project, config=config, image_url=image_url)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def trend_research(
+        topic: Annotated[str | None, Field(description="Тема для исследования. Если не указана — ниша проекта", default=None)] = None,
+        platform: Annotated[str | None, Field(description="Площадка для фильтрации", default=None)] = None,
+    ) -> str:
+        """Исследование трендов: актуальные темы и контент в нише."""
+        if topic is None:
+            topic = ctx.get_context().get("niche", "маркетинг")
+        return await run_trend_research(topic=topic, config=config, cache=cache, platform=platform)
+
+    @mcp.tool(annotations=READ_ONLY)
+    def smm_calendar(
+        period: Annotated[str, Field(description="Период: '1 week', '2 weeks', '1 month'", default="1 week")] = "1 week",
+    ) -> str:
+        """Сводный календарь публикаций по всем площадкам."""
+        project = ctx.get_context()
+        return run_smm_calendar(project_context=project, period=period)
+
+    @mcp.tool(annotations=READ_ONLY)
+    def best_time_to_post(
+        platform: Annotated[str | None, Field(description="Площадка: telegram, vk, max, dzen", default=None)] = None,
+    ) -> str:
+        """Рекомендация лучшего времени публикации (бенчмарки Рунета)."""
+        project = ctx.get_context()
+        return run_best_time_to_post(project_context=project, platform=platform)
+
     # --- Prompt Resources ---
 
     prompts_dir = Path(__file__).parent / "prompts"
@@ -391,6 +505,11 @@ def create_server(base_dir: Path = DEFAULT_BASE_DIR) -> FastMCP:
     def content_writer_prompt() -> str:
         """Промпт контент-райтера."""
         return (prompts_dir / "content_writer.md").read_text(encoding="utf-8")
+
+    @mcp.resource("marketolog://prompts/smm_manager")
+    def smm_manager_prompt() -> str:
+        """Промпт SMM-менеджера."""
+        return (prompts_dir / "smm_manager.md").read_text(encoding="utf-8")
 
     # --- Scheduled Posts Check ---
 
