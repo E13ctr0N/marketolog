@@ -25,6 +25,13 @@ from marketolog.modules.seo.keywords import run_keyword_research, run_keyword_cl
 from marketolog.modules.seo.positions import run_check_positions
 from marketolog.modules.seo.competitors import run_analyze_competitors, run_content_gap
 from marketolog.modules.seo.webmaster import run_webmaster_report
+from marketolog.modules.analytics.utm import generate_utm as _generate_utm
+from marketolog.modules.analytics.metrika import run_metrika_report, run_metrika_goals
+from marketolog.modules.analytics.search_console import run_search_console_report
+from marketolog.modules.analytics.traffic_sources import run_traffic_sources
+from marketolog.modules.analytics.funnel import run_funnel_analysis
+from marketolog.modules.analytics.ai_referral import run_ai_referral_report
+from marketolog.modules.analytics.digest import run_weekly_digest
 from marketolog.utils.cache import FileCache
 
 READ_ONLY = ToolAnnotations(readOnlyHint=True)
@@ -110,6 +117,13 @@ def create_server(base_dir: Path = DEFAULT_BASE_DIR) -> FastMCP:
         return yaml.dump(context, allow_unicode=True, sort_keys=False)
 
     cache = FileCache(base_dir=base_dir / "cache")
+
+    def _get_counter_id() -> str:
+        """Get Metrika counter ID from config or project context."""
+        if config.yandex_metrika_counter:
+            return config.yandex_metrika_counter
+        project = ctx.get_context()
+        return project.get("seo", {}).get("yandex_metrika_id", "")
 
     # --- SEO Tools ---
 
@@ -203,6 +217,88 @@ def create_server(base_dir: Path = DEFAULT_BASE_DIR) -> FastMCP:
         host = project.get("seo", {}).get("webmaster_host", project["url"])
         return await run_webmaster_report(host=host, config=config, cache=cache)
 
+    # --- Analytics Tools ---
+
+    @mcp.tool(annotations=READ_ONLY)
+    def generate_utm_link(
+        url: Annotated[str, Field(description="URL для UTM-разметки")],
+        source: Annotated[str, Field(description="Источник трафика (telegram, vk, email...)")],
+        medium: Annotated[str, Field(description="Канал (social, cpc, email...)")],
+        campaign: Annotated[str | None, Field(description="Название кампании", default=None)] = None,
+        term: Annotated[str | None, Field(description="Ключевое слово (для платной рекламы)", default=None)] = None,
+        content: Annotated[str | None, Field(description="Вариант объявления", default=None)] = None,
+    ) -> str:
+        """Генерация UTM-размеченной ссылки для отслеживания кампаний."""
+        return _generate_utm(url=url, source=source, medium=medium, campaign=campaign, term=term, content=content)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def metrika_report(
+        period: Annotated[str, Field(description="Период: 7d, 30d, 90d, today", default="7d")] = "7d",
+        metrics: Annotated[str | None, Field(description="Метрики (через запятую)", default=None)] = None,
+    ) -> str:
+        """Отчёт Яндекс.Метрика: визиты, источники, поведение, конверсии."""
+        counter_id = _get_counter_id()
+        if not counter_id:
+            return "Укажите YANDEX_METRIKA_COUNTER или добавьте yandex_metrika_id в проект."
+        return await run_metrika_report(counter_id=counter_id, config=config, cache=cache, period=period, metrics=metrics)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def metrika_goals() -> str:
+        """Список целей и конверсий в Яндекс.Метрике."""
+        counter_id = _get_counter_id()
+        if not counter_id:
+            return "Укажите YANDEX_METRIKA_COUNTER или добавьте yandex_metrika_id в проект."
+        return await run_metrika_goals(counter_id=counter_id, config=config, cache=cache)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def search_console_report(
+        period: Annotated[str, Field(description="Период: 7d, 28d, 90d", default="7d")] = "7d",
+    ) -> str:
+        """Google Search Console: запросы, клики, позиции, CTR."""
+        project = ctx.get_context()
+        site_url = project.get("seo", {}).get("search_console_url", project["url"])
+        return await run_search_console_report(site_url=site_url, config=config, cache=cache, period=period)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def traffic_sources(
+        period: Annotated[str, Field(description="Период: 7d, 30d, 90d", default="7d")] = "7d",
+    ) -> str:
+        """Сводка по источникам трафика: поиск, соцсети, прямые, реферальные."""
+        counter_id = _get_counter_id()
+        if not counter_id:
+            return "Укажите YANDEX_METRIKA_COUNTER или добавьте yandex_metrika_id в проект."
+        return await run_traffic_sources(counter_id=counter_id, config=config, cache=cache, period=period)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def funnel_analysis(
+        goal: Annotated[str | None, Field(description="Название цели (если не указана — первая цель)", default=None)] = None,
+    ) -> str:
+        """Анализ воронки конверсии: источник → визиты → цель → конверсия."""
+        counter_id = _get_counter_id()
+        if not counter_id:
+            return "Укажите YANDEX_METRIKA_COUNTER или добавьте yandex_metrika_id в проект."
+        return await run_funnel_analysis(counter_id=counter_id, config=config, cache=cache, goal=goal)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def weekly_digest() -> str:
+        """Еженедельный дайджест: ключевые метрики, источники, тренды."""
+        counter_id = _get_counter_id()
+        if not counter_id:
+            return "Укажите YANDEX_METRIKA_COUNTER или добавьте yandex_metrika_id в проект."
+        project = ctx.get_context()
+        project_name = project.get("name", "Проект")
+        return await run_weekly_digest(counter_id=counter_id, project_name=project_name, config=config, cache=cache)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def ai_referral_report(
+        period: Annotated[str, Field(description="Период: 7d, 30d, 90d", default="30d")] = "30d",
+    ) -> str:
+        """Трафик с AI-поисковиков: ChatGPT, Perplexity, Claude, Google AI Overviews."""
+        counter_id = _get_counter_id()
+        if not counter_id:
+            return "Укажите YANDEX_METRIKA_COUNTER или добавьте yandex_metrika_id в проект."
+        return await run_ai_referral_report(counter_id=counter_id, config=config, cache=cache, period=period)
+
     # --- Prompt Resources ---
 
     prompts_dir = Path(__file__).parent / "prompts"
@@ -216,6 +312,11 @@ def create_server(base_dir: Path = DEFAULT_BASE_DIR) -> FastMCP:
     def seo_expert_prompt() -> str:
         """Промпт SEO-эксперта."""
         return (prompts_dir / "seo_expert.md").read_text(encoding="utf-8")
+
+    @mcp.resource("marketolog://prompts/analyst")
+    def analyst_prompt() -> str:
+        """Промпт аналитика."""
+        return (prompts_dir / "analyst.md").read_text(encoding="utf-8")
 
     # --- Scheduled Posts Check ---
 

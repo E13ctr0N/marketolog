@@ -42,6 +42,6 @@ def test_seo_tools_are_read_only(server):
 
 
 def test_total_tool_count(server):
-    """Server should have exactly 14 tools (6 Core + 8 SEO)."""
+    """Server should have exactly 22 tools (6 Core + 8 SEO + 8 Analytics)."""
     tools = asyncio.run(server._local_provider.list_tools())
-    assert len(tools) == 14, f"Expected 14 tools, got {len(tools)}: {[t.name for t in tools]}"
+    assert len(tools) == 22, f"Expected 22 tools, got {len(tools)}: {[t.name for t in tools]}"
