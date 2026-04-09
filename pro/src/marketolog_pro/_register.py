@@ -102,6 +102,16 @@ def register_pro_tools(
             project = ctx.get_context()
             competitor_urls = [c["url"] for c in project.get("competitors", []) if c.get("url")]
         if not competitor_urls:
+            project = ctx.get_context()
+            names = [c.get("name", "") for c in project.get("competitors", []) if c.get("name")]
+            if names:
+                names_str = ", ".join(names)
+                return (
+                    f"Конкуренты в проекте найдены ({names_str}), но без URL.\n"
+                    "Для SEO-анализа нужны URL сайтов конкурентов.\n"
+                    "Добавьте через: update_project(\"competitors\", "
+                    "\"[{name: Название, url: https://example.com}]\")"
+                )
             return "Укажите competitor_urls или добавьте конкурентов в проект."
         return await run_analyze_competitors(competitor_urls=competitor_urls, config=config, cache=cache)
 
@@ -116,6 +126,15 @@ def register_pro_tools(
             competitor_urls = [c["url"] for c in project.get("competitors", []) if c.get("url")]
         keywords = project.get("seo", {}).get("main_keywords", [])
         if not competitor_urls:
+            names = [c.get("name", "") for c in project.get("competitors", []) if c.get("name")]
+            if names:
+                names_str = ", ".join(names)
+                return (
+                    f"Конкуренты в проекте найдены ({names_str}), но без URL.\n"
+                    "Для анализа контентных пробелов нужны URL сайтов конкурентов.\n"
+                    "Добавьте через: update_project(\"competitors\", "
+                    "\"[{name: Название, url: https://example.com}]\")"
+                )
             return "Укажите competitor_urls или добавьте конкурентов в проект."
         return await run_content_gap(site_url=site_url, competitor_urls=competitor_urls, keywords=keywords, config=config, cache=cache)
 

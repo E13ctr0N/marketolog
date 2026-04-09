@@ -128,6 +128,14 @@ def _normalize_project(data: dict) -> dict:
                 normalized.append(item)
         data["competitors"] = normalized
 
+    # Normalize seo.main_keywords: string → list[str]
+    seo = data.get("seo", {})
+    if isinstance(seo, dict):
+        kw = seo.get("main_keywords")
+        if isinstance(kw, str) and kw.strip():
+            seo["main_keywords"] = [k.strip() for k in kw.split(",") if k.strip()]
+            data["seo"] = seo
+
     return data
 
 

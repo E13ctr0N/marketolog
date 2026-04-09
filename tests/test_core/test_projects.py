@@ -118,6 +118,21 @@ def test_normalize_string_audience_and_competitors(projects_dir: Path):
     assert result["competitors"][2]["name"] == "Jira"
 
 
+def test_normalize_string_seo_main_keywords(projects_dir: Path):
+    """When seo.main_keywords is a string, get_project normalizes to list[str]."""
+    create_project("kw-test", "https://k.ru", "n", "d", projects_dir=projects_dir)
+    update_project("kw-test", "seo.main_keywords", "nft игра, nft коты, криптоигра", projects_dir=projects_dir)
+
+    result = get_project("kw-test", projects_dir=projects_dir)
+
+    kw = result["seo"]["main_keywords"]
+    assert isinstance(kw, list)
+    assert len(kw) == 3
+    assert kw[0] == "nft игра"
+    assert kw[1] == "nft коты"
+    assert kw[2] == "криптоигра"
+
+
 @pytest.mark.parametrize("bad_name", [
     "../../etc/passwd",
     "../escape",

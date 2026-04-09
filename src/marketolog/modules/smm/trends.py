@@ -31,16 +31,19 @@ async def run_trend_research(
     Returns:
         Formatted list of trending topics/content.
     """
-    cached = cache.get(CACHE_NS, topic)
+    exa_available = config.is_configured("exa_api_key")
+    cache_key = f"{topic}:exa={exa_available}"
+
+    cached = cache.get(CACHE_NS, cache_key)
     if cached is not None:
         return cached  # type: ignore[return-value]
 
-    if config.is_configured("exa_api_key"):
+    if exa_available:
         report = await _search_exa(topic, config, platform)
     else:
         report = _fallback_suggestions(topic, platform)
 
-    cache.set(CACHE_NS, topic, report, ttl_seconds=CACHE_TTL)
+    cache.set(CACHE_NS, cache_key, report, ttl_seconds=CACHE_TTL)
     return report
 
 

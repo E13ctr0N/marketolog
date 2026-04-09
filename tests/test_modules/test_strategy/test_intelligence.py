@@ -70,7 +70,7 @@ async def test_intelligence_no_exa(config_no_keys, cache, project_context):
 @pytest.mark.asyncio
 async def test_intelligence_cached(config_with_keys, cache, project_context):
     """Cached result returned without API call."""
-    cache_key = "test-saas:competitors"
+    cache_key = "test-saas:competitors:exa=True"
     cache.set("competitor_intel", cache_key, "cached intel", ttl_seconds=3600)
 
     result = await run_competitor_intelligence(

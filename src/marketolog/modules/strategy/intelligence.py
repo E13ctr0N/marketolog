@@ -32,22 +32,26 @@ async def run_competitor_intelligence(
         Formatted competitor intelligence report.
     """
     project_name = project_context.get("name", "project")
-    cache_key = f"{project_name}:competitors"
+    exa_available = config.is_configured("exa_api_key")
+    cache_key = f"{project_name}:competitors:exa={exa_available}"
 
     cached = cache.get(CACHE_NS, cache_key)
     if cached is not None:
         return cached
 
+    competitors_data = project_context.get("competitors", [])
     competitors = competitor_urls or [
-        c.get("url", "") for c in project_context.get("competitors", []) if c.get("url")
+        c.get("url", "") for c in competitors_data if c.get("url")
     ]
     competitor_names = [
-        c.get("name", c.get("url", "")) for c in project_context.get("competitors", [])
+        c.get("name", c.get("url", "")) for c in competitors_data
     ]
 
     niche = project_context.get("niche", "")
 
-    if config.is_configured("exa_api_key") and competitors:
+    has_competitors = bool(competitors) or any(competitor_names)
+
+    if config.is_configured("exa_api_key") and has_competitors:
         report = await _search_exa_competitors(competitors, competitor_names, niche, config)
     else:
         report = _fallback_analysis(competitor_names, competitors, niche, project_context)
@@ -67,8 +71,19 @@ async def _search_exa_competitors(
 
     lines = ["## Конкурентная разведка\n"]
 
-    for i, url in enumerate(urls):
-        name = names[i] if i < len(names) else url
+    # Build search items from names, falling back to URLs
+    search_items = []
+    for i, name in enumerate(names):
+        url = urls[i] if i < len(urls) else ""
+        search_items.append((name or url, url))
+    # Add any extra URLs not covered by names
+    for i in range(len(names), len(urls)):
+        if urls[i]:
+            search_items.append((urls[i], urls[i]))
+
+    for name, url in search_items:
+        if not name:
+            continue
 
         query = f"{name} {niche} обзор отзывы цены 2026"
         body = {
@@ -88,7 +103,8 @@ async def _search_exa_competitors(
         )
 
         lines.append(f"### {name}")
-        lines.append(f"URL: {url}")
+        if url:
+            lines.append(f"URL: {url}")
         lines.append("")
 
         if resp.status_code == 200:

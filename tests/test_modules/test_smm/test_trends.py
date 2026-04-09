@@ -52,7 +52,7 @@ async def test_trend_research_no_key(config_no_keys, cache):
 @pytest.mark.asyncio
 async def test_trend_research_cached(config_with_keys, cache):
     """Cached result returned."""
-    cache.set("trends", "маркетинг", "cached trends", ttl_seconds=3600)
+    cache.set("trends", "маркетинг:exa=True", "cached trends", ttl_seconds=3600)
 
     result = await run_trend_research(
         topic="маркетинг",
