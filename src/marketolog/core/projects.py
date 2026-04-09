@@ -93,12 +93,50 @@ def list_projects(*, projects_dir: Path = DEFAULT_PROJECTS_DIR) -> list[dict]:
     return results
 
 
+def _normalize_project(data: dict) -> dict:
+    """Normalize project fields that may be strings instead of expected types.
+
+    When users set target_audience or competitors via update_project with a plain
+    string, YAML stores them as strings. Tools expect list[dict]. This converts:
+    - string target_audience → [{"segment": <string>, "pain": ""}]
+    - string competitors → [{"name": <item>, "url": ""} for each comma-separated item]
+    - list[str] → list[dict] with appropriate keys
+    """
+    ta = data.get("target_audience")
+    if isinstance(ta, str) and ta.strip():
+        data["target_audience"] = [{"segment": ta.strip(), "pain": ""}]
+    elif isinstance(ta, list):
+        normalized = []
+        for item in ta:
+            if isinstance(item, str):
+                normalized.append({"segment": item.strip(), "pain": ""})
+            elif isinstance(item, dict):
+                normalized.append(item)
+        data["target_audience"] = normalized
+
+    comps = data.get("competitors")
+    if isinstance(comps, str) and comps.strip():
+        data["competitors"] = [
+            {"name": c.strip(), "url": ""} for c in comps.split(",") if c.strip()
+        ]
+    elif isinstance(comps, list):
+        normalized = []
+        for item in comps:
+            if isinstance(item, str):
+                normalized.append({"name": item.strip(), "url": ""})
+            elif isinstance(item, dict):
+                normalized.append(item)
+        data["competitors"] = normalized
+
+    return data
+
+
 def get_project(name: str, *, projects_dir: Path = DEFAULT_PROJECTS_DIR) -> dict:
     """Get full project data. Raises FileNotFoundError if missing."""
     path = _project_path(name, projects_dir)
     if not path.exists():
         raise FileNotFoundError(f"Проект '{name}' не найден")
-    return _load_yaml(path)
+    return _normalize_project(_load_yaml(path))
 
 
 def update_project(

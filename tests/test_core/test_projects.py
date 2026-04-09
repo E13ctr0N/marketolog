@@ -97,6 +97,27 @@ def test_delete_nonexistent_project(projects_dir: Path):
         delete_project("ghost", projects_dir=projects_dir)
 
 
+def test_normalize_string_audience_and_competitors(projects_dir: Path):
+    """When target_audience/competitors are strings, get_project normalizes to list[dict]."""
+    create_project("norm", "https://n.ru", "n", "d", projects_dir=projects_dir)
+    update_project("norm", "target_audience", "фрилансеры и разработчики", projects_dir=projects_dir)
+    update_project("norm", "competitors", "Trello, Asana, Jira", projects_dir=projects_dir)
+
+    result = get_project("norm", projects_dir=projects_dir)
+
+    # target_audience: string → list of one dict
+    assert isinstance(result["target_audience"], list)
+    assert len(result["target_audience"]) == 1
+    assert result["target_audience"][0]["segment"] == "фрилансеры и разработчики"
+
+    # competitors: comma-separated string → list of dicts
+    assert isinstance(result["competitors"], list)
+    assert len(result["competitors"]) == 3
+    assert result["competitors"][0]["name"] == "Trello"
+    assert result["competitors"][1]["name"] == "Asana"
+    assert result["competitors"][2]["name"] == "Jira"
+
+
 @pytest.mark.parametrize("bad_name", [
     "../../etc/passwd",
     "../escape",
