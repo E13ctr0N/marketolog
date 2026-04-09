@@ -25,40 +25,53 @@ AI-маркетолог для бизнеса в Рунете — MCP-серве
 
 ## Быстрый старт
 
-### Установка
+### 1. Создайте виртуальное окружение и установите пакет
 
 ```bash
-python -m venv .marketolog-env
-# Windows:
-.marketolog-env\Scripts\activate
-# macOS/Linux:
-# source .marketolog-env/bin/activate
+# Создайте папку и окружение (можно в любом месте)
+mkdir marketolog-workspace && cd marketolog-workspace
+python -m venv .venv
 
+# Активируйте окружение
+# Windows (PowerShell):
+.venv\Scripts\activate
+# macOS/Linux:
+# source .venv/bin/activate
+
+# Установите пакет
 pip install marketolog
 ```
 
-### Подключение к Claude Desktop
+### 2. Подключите к Claude
 
-Добавьте в `claude_desktop_config.json` (путь к python из виртуального окружения):
+**Claude Code:**
+
+```bash
+# Укажите полный путь к python из окружения!
+# Windows:
+claude mcp add marketolog -- /полный/путь/до/.venv/Scripts/python.exe -m marketolog
+# macOS/Linux:
+# claude mcp add marketolog -- /полный/путь/до/.venv/bin/python -m marketolog
+```
+
+> Подсказка: чтобы узнать путь, выполните `where python` (Windows) или `which python` (macOS/Linux) при активированном окружении.
+
+**Claude Desktop:**
+
+Добавьте в `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "marketolog": {
-      "command": "/path/to/.marketolog-env/bin/python",
+      "command": "/полный/путь/до/.venv/Scripts/python.exe",
       "args": ["-m", "marketolog"]
     }
   }
 }
 ```
 
-> Windows: `.marketolog-env\\Scripts\\python.exe`
-
-### Подключение к Claude Code
-
-```bash
-claude mcp add marketolog -- python -m marketolog
-```
+> macOS/Linux: замените путь на `.venv/bin/python`
 
 ### Первый запуск
 
