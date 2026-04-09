@@ -28,23 +28,31 @@ AI-маркетолог для бизнеса в Рунете — MCP-серве
 ### Установка
 
 ```bash
+python -m venv .marketolog-env
+# Windows:
+.marketolog-env\Scripts\activate
+# macOS/Linux:
+# source .marketolog-env/bin/activate
+
 pip install marketolog
 ```
 
 ### Подключение к Claude Desktop
 
-Добавьте в `claude_desktop_config.json`:
+Добавьте в `claude_desktop_config.json` (путь к python из виртуального окружения):
 
 ```json
 {
   "mcpServers": {
     "marketolog": {
-      "command": "python",
+      "command": "/path/to/.marketolog-env/bin/python",
       "args": ["-m", "marketolog"]
     }
   }
 }
 ```
+
+> Windows: `.marketolog-env\\Scripts\\python.exe`
 
 ### Подключение к Claude Code
 
@@ -189,11 +197,12 @@ python -m marketolog auth status      # Статус подключений
 3. Установите:
 
 ```bash
-pip install marketolog                     # базовый пакет (бесплатно, PyPI)
-pip install git+https://github.com/E13ctr0N/marketolog-pro.git   # Pro-пакет (приватный репо)
+# В том же виртуальном окружении:
+pip install marketolog                                             # базовый пакет
+pip install git+https://github.com/E13ctr0N/marketolog-pro.git    # Pro-пакет
 ```
 
-> Для установки из приватного репо нужен GitHub-аккаунт с доступом и настроенный `git`.
+> Для установки Pro нужен GitHub-аккаунт с доступом и настроенный `git`.
 
 После установки 36 Pro-инструментов автоматически появятся в Claude.
 
