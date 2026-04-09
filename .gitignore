@@ -24,3 +24,7 @@ htmlcov/
 
 # Marketolog runtime (may contain secrets)
 config.yaml
+
+# Pro version (separate repo)
+pro/
+tests/test_pro_integration.py
