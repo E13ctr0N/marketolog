@@ -185,16 +185,17 @@ python -m marketolog auth status      # Статус подключений
 
 **Как получить:**
 1. Напишите в Telegram: [@E13ctr](https://t.me/E13ctr)
-2. Получите доступ к приватному репозиторию
+2. После оплаты вы получите доступ к приватному GitHub-репозиторию
 3. Установите:
 
 ```bash
-pip install marketolog                    # базовый пакет (PyPI)
-git clone https://github.com/E13ctr0N/marketolog-pro.git
-pip install marketolog-pro/releases/v0.1.0/marketolog_pro-0.1.0-py3-none-any.whl
+pip install marketolog                     # базовый пакет (бесплатно, PyPI)
+pip install git+https://github.com/E13ctr0N/marketolog-pro.git   # Pro-пакет (приватный репо)
 ```
 
-После установки Pro-инструменты автоматически появятся в Claude.
+> Для установки из приватного репо нужен GitHub-аккаунт с доступом и настроенный `git`.
+
+После установки 36 Pro-инструментов автоматически появятся в Claude.
 
 ## Лицензия
 
