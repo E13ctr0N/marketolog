@@ -95,3 +95,18 @@ def test_delete_project(projects_dir: Path):
 def test_delete_nonexistent_project(projects_dir: Path):
     with pytest.raises(FileNotFoundError, match="не найден"):
         delete_project("ghost", projects_dir=projects_dir)
+
+
+@pytest.mark.parametrize("bad_name", [
+    "../../etc/passwd",
+    "../escape",
+    "/absolute",
+    "has spaces",
+    "UPPERCASE",
+    "",
+    ".hidden",
+    "a" * 64,
+])
+def test_reject_invalid_project_names(projects_dir: Path, bad_name: str):
+    with pytest.raises(ValueError, match="Недопустимое имя"):
+        create_project(bad_name, "https://x.ru", "n", "d", projects_dir=projects_dir)

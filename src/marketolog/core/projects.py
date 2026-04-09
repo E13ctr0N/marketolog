@@ -3,9 +3,12 @@
 Storage: ~/.marketolog/projects/<name>.yaml
 """
 
+import re
 from pathlib import Path
 
 import yaml
+
+_VALID_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,62}$")
 
 DEFAULT_PROJECTS_DIR = Path.home() / ".marketolog" / "projects"
 
@@ -28,7 +31,17 @@ PROJECT_TEMPLATE = {
 }
 
 
+def _validate_name(name: str) -> None:
+    """Raise ValueError if project name contains unsafe characters."""
+    if not _VALID_NAME_RE.match(name):
+        raise ValueError(
+            f"Недопустимое имя проекта: '{name}'. "
+            "Используйте латиницу, цифры, дефис и подчёркивание (a-z, 0-9, -, _)."
+        )
+
+
 def _project_path(name: str, projects_dir: Path) -> Path:
+    _validate_name(name)
     return projects_dir / f"{name}.yaml"
 
 

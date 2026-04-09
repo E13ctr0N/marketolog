@@ -43,9 +43,7 @@ def format_tabular(data: list[dict]) -> str:
             if value is None:
                 cells.append("")
             elif isinstance(value, (dict, list)):
-                # JSON-serialize nested structures; keep the JSON readable.
-                # Do NOT re-quote through csv.writer to avoid double-escaping.
-                cells.append(json.dumps(value, ensure_ascii=False))
+                cells.append(_csv_quote(json.dumps(value, ensure_ascii=False)))
             else:
                 cells.append(_csv_quote(str(value)))
 

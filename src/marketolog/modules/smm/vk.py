@@ -11,6 +11,34 @@ from marketolog.utils.http import fetch_with_retry
 VK_API = "https://api.vk.com/method"
 VK_VERSION = "5.199"
 
+# Cache resolved group IDs to avoid repeated API calls within a session
+_group_id_cache: dict[str, str] = {}
+
+
+async def _resolve_group_id(group: str, token: str) -> str:
+    """Resolve VK group short name to numeric ID. Returns negative owner_id."""
+    if group.isdigit():
+        return f"-{group}"
+
+    if group in _group_id_cache:
+        return _group_id_cache[group]
+
+    resp = await fetch_with_retry(
+        f"{VK_API}/groups.getById",
+        params={"group_id": group, "access_token": token, "v": VK_VERSION},
+    )
+    if resp.status_code == 200:
+        data = resp.json()
+        groups = data.get("response", {}).get("groups", data.get("response", []))
+        if isinstance(groups, list) and groups:
+            gid = str(groups[0].get("id", ""))
+            if gid:
+                _group_id_cache[group] = f"-{gid}"
+                return f"-{gid}"
+
+    raise ValueError(f"Не удалось определить ID группы VK: '{group}'")
+
+
 SETUP_INSTRUCTIONS = """\
 VK API не настроен.
 
@@ -47,11 +75,7 @@ async def run_vk_post(
 
     token: str = config.vk_api_token  # type: ignore[assignment]
 
-    # Determine owner_id: if numeric, use -group_id; otherwise resolve
-    if group.isdigit():
-        owner_id = f"-{group}"
-    else:
-        owner_id = f"-{group}"  # VK accepts short name in some methods
+    owner_id = await _resolve_group_id(group, token)
 
     body: dict = {
         "access_token": token,
@@ -64,7 +88,7 @@ async def run_vk_post(
     if schedule_timestamp:
         body["publish_date"] = schedule_timestamp
 
-    resp = await fetch_with_retry(f"{VK_API}/wall.post", method="POST", json=body)
+    resp = await fetch_with_retry(f"{VK_API}/wall.post", params=body)
 
     if resp.status_code != 200:
         return f"Ошибка VK API (HTTP {resp.status_code}): {resp.text[:200]}"
@@ -121,7 +145,7 @@ async def run_vk_stats(
         "date_to": today.isoformat(),
     }
 
-    resp = await fetch_with_retry(f"{VK_API}/stats.get", method="POST", json=body)
+    resp = await fetch_with_retry(f"{VK_API}/stats.get", params=body)
 
     if resp.status_code != 200:
         return f"Ошибка VK API (HTTP {resp.status_code}): {resp.text[:200]}"

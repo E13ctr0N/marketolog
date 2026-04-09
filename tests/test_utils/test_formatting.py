@@ -38,7 +38,24 @@ def test_format_tabular_with_none():
 
 
 def test_format_tabular_with_nested_dict():
+    # Single-key dict: no comma in JSON → no CSV quoting needed
     data = [{"name": "test", "meta": {"key": "val"}}]
     result = format_tabular(data)
     lines = result.strip().split("\n")
-    assert '{"key": "val"}' in lines[1]
+    assert lines[1] == 'test,{"key": "val"}'
+
+
+def test_format_tabular_nested_dict_with_comma():
+    # Multi-key dict: JSON contains comma → must be CSV-quoted
+    data = [{"name": "test", "meta": {"a": 1, "b": 2}}]
+    result = format_tabular(data)
+    lines = result.strip().split("\n")
+    assert lines[1] == 'test,"{""a"": 1, ""b"": 2}"'
+
+
+def test_format_tabular_nested_list_csv_quoted():
+    data = [{"name": "x", "tags": ["a", "b"]}]
+    result = format_tabular(data)
+    lines = result.strip().split("\n")
+    # list serialized as JSON contains comma → must be quoted
+    assert lines[1] == 'x,"[""a"", ""b""]"'
